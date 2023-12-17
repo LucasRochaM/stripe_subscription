@@ -1,73 +1,63 @@
 <div class="container">
   <div class="row">
     <div class="col-12">
-      <h1 class="mb-3 text-center">Stripe with Ruby on Rails for a subscription based checkout !</h1>
+      <h1 class="mb-3 text-center">Stripe with Ruby on Rails for a subscription-based checkout!</h1>
       <div class="card-payment">
         <%= form_tag subscriptions_path, id: 'subscription-form' do %>
-          <h2>Subscribe</h2>
           <div class="form-group">
             <%= label_tag :email, 'Email' %>
-            <%= email_field_tag :stripeEmail, nil, class: 'form-control' %>
-
+            <%= email_field_tag :email, nil, class: 'form-control' %>
           </div>
+
           <div class="form-group">
             <%= label_tag :card, 'Credit Card' %>
             <div id="card-element" class="form-control"></div>
             <div id="card-errors" role="alert"></div>
           </div>
-        <%= submit_tag 'Subscribe', class: 'btn btn-primary' %>
+
+          <!-- Hidden field for Stripe Token -->
+          <%= hidden_field_tag :stripeToken, nil, id: 'stripeToken' %>
+
+          <%= submit_tag 'Subscribe', class: 'btn btn-primary' %>
         <% end %>
       </div>
     </div>
   </div>
 </div>
 
+
 <script src="https://js.stripe.com/v3/"></script>
 <script>
   document.addEventListener("DOMContentLoaded", function () {
+    const stripe = Stripe('<%= Rails.configuration.stripe[:publishable_key] %>');
+    const elements = stripe.elements(); // Create an instance of Elements
+    const card = elements.create('card'); // Create the card element
+    card.mount('#card-element'); // Mount the card element in the DOM
 
-    const stripe = Stripe('<%=  Rails.configuration.stripe[:publishable_key]%>')
-    const elements = stripe.elements();
-    const card = elements.create('card');
-    card.mount('#card-element');
-
-    card.addEventListener('change', function (e) {
+    card.addEventListener('change', function (event) {
       const displayError = document.getElementById('card-errors');
       if (event.error) {
         displayError.textContent = event.error.message;
       } else {
         displayError.textContent = '';
       }
-    })
+    });
 
+    // Handle form submission
     const form = document.getElementById('subscription-form');
-    form.addEventListener('submit', function (e) {
+    form.addEventListener('submit', function (event) {
       event.preventDefault();
 
-      stripe.createPaymentMethod({
-        type: 'card',
-        card: card,
-        billing_details: {
-          email: document.getElementById('stripeEmail').value,
-        },
-      }).then(function (result) {
+      stripe.createToken(card).then(function (result) { // Create a token using the card details
         if (result.error) {
           const errorElement = document.getElementById('card-errors');
           errorElement.textContent = result.error.message;
         } else {
-          stripePaymentMethodHandler(result.paymentMethod)
+          // Add the token to the hidden field and submit the form
+          document.getElementById('stripeToken').value = result.token.id;
+          form.submit();
         }
-      })
-    })
-
-    function stripePaymentMethodHandler(paymentMethod) {
-      const form = document.getElementById('subscription-form');
-      const hiddenInput = document.createElement('input');
-      hiddenInput.setAttribute('type', 'hidden');
-      hiddenInput.setAttribute('name', 'stripePaymentMethod');
-      hiddenInput.setAttribute('value', paymentMethod.id);
-      form.appendChild(hiddenInput)
-      form.submit();
-    }
-  })
+      });
+    });
+  });
 </script>
